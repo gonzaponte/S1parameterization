@@ -2,7 +2,6 @@ from numpy import loadtxt
 from math import *
 from ROOT import *
 from PMTmap import pmt_map
-#from gridmap import xyz_map
 from Plots import Plot4D, MakeGif
 
 gStyle.SetOptStat('')
@@ -25,7 +24,7 @@ xyz_map = { i : ( (i%1936)//44, (i%1936)%44 , -300. + 10*(i//1936) ) for i in ra
 
 zs = [ -300 + 10*i for i in range(61) ]
 
-S1table = loadtxt( '/Users/Gonzalo/Desktop/S1/S1table.dat' )
+S1table = loadtxt( '/Users/Gonzalo/github/S1parameterization/S1table.dat' )
 
 def Make4Dplot( data = S1table ):
     x, y, z = zip( *map( xyz_map.get, zip(*data)[0] ) )
@@ -68,7 +67,7 @@ def r_dependence( data = S1table ):
         n = sum( dat[1:] )
         r = ( x**2 + y**2 )**0.5
         hs[z].Fill(r,n)
-    
+
     ps = { z : hs[z].ProfileX() for z in zs }
     canvas = TCanvas()
     canvas.Divide(8,8)
@@ -78,7 +77,7 @@ def r_dependence( data = S1table ):
         ps[z].SetLineColor(kRed)
         ps[z].SetLineWidth(2)
         ps[z].Draw('same')
-    
+
     canvas.Modified()
     canvas.Update()
     return hs, ps, canvas
@@ -91,7 +90,7 @@ def phi_dependence( data = S1table ):
         n = sum( dat[1:] )
         phi = atan2( y, x )
         hs[z].Fill(phi,n)
-    
+
     ps = { z : hs[z].ProfileX() for z in zs }
     canvas = TCanvas()
     canvas.Divide(8,8)
@@ -101,7 +100,7 @@ def phi_dependence( data = S1table ):
         ps[z].SetLineColor(kRed)
         ps[z].SetLineWidth(2)
         ps[z].Draw('same')
-    
+
     canvas.Modified()
     canvas.Update()
     return hs, ps, canvas
@@ -117,13 +116,11 @@ def xy_dependence( data = S1table, outdir = './forgif/' ):
         h = hs[z]
         for i in xrange(int(n)):
             h.Fill(x,y)
-    
+
     for z in zs:
         c = TCanvas()
         hs[z].Draw('zcol')
         c.SaveAs( outdir + titles[z].split(';')[0] + '.png' )
         del c
-    
+
     MakeGif( sorted(z.keys()), outdir )
-    
-    

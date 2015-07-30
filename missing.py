@@ -1,6 +1,6 @@
 
-ifilename = 'missing.txt'
-ofilename = 'missing.dat'
+ifilename = 'mfiles.txt'
+ofilename = 'mfiles.dat'
 
 ifile = open( ifilename )
 ofile = open( ofilename, 'w' )

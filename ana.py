@@ -96,9 +96,9 @@ def phi_dependence( data = S1table ):
 
     for dat in data:
         x, y, z = xyz_map[dat[0]]
+        if (x**2 + y**2)**0.5 > 215: continue
         n = sum( dat[1:] )
         phi = atan2( y, x )
-        if not n: print x,y,z
         hs[z].Fill(phi,n)
 
     ps = { z : hs[z].ProfileX() for z in zs }

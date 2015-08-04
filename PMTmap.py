@@ -1,3 +1,5 @@
+from math import atan2
+
 pmt_map = {
 0 : ( 23.9414, 65.7785 ),
 1 : ( 44.9951, -53.6231 ),
@@ -12,3 +14,5 @@ pmt_map = {
 10 : ( -182.189, 32.1249 ),
 11 : ( -118.916, 141.718 )
 }
+
+phi_map = { ID : atan2(*pmt_map[ID][::-1]) for ID in pmt_map }

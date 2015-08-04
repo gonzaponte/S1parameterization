@@ -162,6 +162,141 @@ def xy_dependence( data = S1table, outdir = './forgif/' ):
     canvas.Update()
     return canvas,hs
 
+def zfit( data = S1table, rmax = 200. ):
+    hz = TH2F( 'zfit', ';z (mm);# photons', zbin, zmin, zmax, nbin, nmin, nmax )
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        n = sum( dat[1:] )
+        r = ( x**2 + y**2 )**0.5
+        if r>rmax: continue
+        hz.Fill( z, n )
+
+    pz = hz.ProfileX()
+    pz.SetLineWidth(2)
+    pz.SetLineColor(kYellow)
+
+    canvas = TCanvas()
+    hz.Draw()
+    pz.Draw('same')
+    pz.Fit('pol9','','same',-240,280)
+
+    expofit = pz.GetFunction('pol9')
+    return hz, pz, expofit, canvas
+
+def rfit( data = S1table, zmin = -240, zmax = 280 ):
+    hr = TH2F( 'rfit', ';r (mm);# photons', rbin, rmin, rmax, nbin, nmin, nmax )
+    z_fit = zfit(data,100.)
+    raw_input()
+    z_fit = z_fit[:-1]
+    zfunc = z_fit[-1]
+    nphmax = zfunc.Eval(zmin)
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not (zmin <= z < zmax): continue
+        #if not z == zmax-10: continue
+        n = sum( dat[1:] ) * nphmax / zfunc.Eval(z)
+        r = ( x**2 + y**2 )**0.5
+        hr.Fill( r, n )
+
+    pr = hr.ProfileX()
+    pr.SetLineWidth(2)
+    pr.SetLineColor(kYellow)
+
+    canvas = TCanvas()
+    hr.Draw()
+    pr.Draw('same')
+    #pr.Fit('pol9','','same',-240,280)
+    expofit = 0
+    #expofit = pz.GetFunction('pol9')
+    return hr, pr, expofit, canvas
+
+def r_profiles( data = S1table, zmin = -240, zmax = 280 ):
+    N = int( (zmax-zmin)//10 )
+    hs = [ TH2F( str(i), '', rbin, rmin, rmax, nbin, nmin, nmax ) for i in range(N) ]
+    z_fit = zfit(data,50.)
+    raw_input()
+    z_fit = z_fit[:-1]
+    zfunc = z_fit[-1]
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not (zmin <= z < zmax ): continue
+        n = sum( dat[1:] ) * zfunc.Eval(zmin) / zfunc.Eval(z)
+        r = ( x**2 + y**2 )**0.5
+        hs[int(z-zmin)//10].Fill(r,n)
+
+    ps = [ h.ProfileX() for h in hs ]
+    canvas = TCanvas()
+    colors = [ kBlack, kRed, kBlue, kGreen, kOrange, kYellow, kMagenta ] * 10
+    for i in range(N):
+        ps[i].SetLineColor(colors[i])
+        ps[i].SetLineWidth(2)
+        ps[i].Draw('same')
+
+    return hs, ps, canvas
+
+def phi_fit( data = S1table, rmax = 200., zmin = -240, zmax = 280 ):
+    hphi = TH2F( 'phifit', ';phi;# photons', pbin, pmin, pmax, nbin, nmin, nmax )
+    z_fit = zfit(data,100.)
+    #raw_input()
+    z_fit = z_fit[:-1]
+    zfunc = z_fit[-1]
+    nphmax = zfunc.Eval(zmin)
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not (zmin <= z < zmax): continue
+        if ( x**2 + y**2 )**0.5 > rmax: continue
+        n = sum( dat[1:] ) * nphmax / zfunc.Eval(z)
+        phi = atan2(y,x)
+        hphi.Fill( phi, n )
+
+    pphi = hphi.ProfileX()
+    pphi.SetLineWidth(2)
+    pphi.SetLineColor(kYellow)
+
+    canvas = TCanvas()
+    hphi.Draw()
+    pphi.Draw('same')
+    #pr.Fit('pol9','','same',-240,280)
+    expofit = 0
+    #expofit = pz.GetFunction('pol9')
+    return hphi, pphi, expofit, canvas
+
+def xy_fit( data = S1table, zmin = -240., zmax = 280., rmax = 180. ):
+    hphi = [ TH2F( 'PMT {0} fit'.format(ID), str(ID) + ';phi;# photons', pbin, pmin, pmax, nbin, nmin/10, nmax/10 ) for ID in sorted(pmt_map) ]
+    z_fit = zfit(data,100.)
+    z_fit = z_fit[:-1]
+    zfunc = z_fit[-1]
+    nphmax = zfunc.Eval(zmin)
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not (zmin <= z < zmax): continue
+        if ( x**2 + y**2 )**0.5 > rmax: continue
+        for i in pmt_map:
+            n = dat[1+i] * nphmax / zfunc.Eval(z)
+            phi = atan2(y,x)
+            hphi[i].Fill( phi, n )
+
+    colors = [kAzure,kBlack,kGray+1,kBlue,kGreen,kOrange,kViolet,kRed,kYellow,kMagenta,kGray,kCyan]
+    pphi = map(TH2.ProfileX,hphi)
+    for ID in pmt_map:
+        canvas = TCanvas()
+        pphi[ID].SetLineWidth(2)
+        pphi[ID].SetLineColor(colors[ID])
+        pphi[ID].SetMinimum(0)
+        hphi[ID].Draw()
+        pphi[ID].Draw('same')
+        raw_input()
+        del canvas
+
+    canvas = TCanvas()
+    for p in pphi: p.Draw('same')
+    canvas.BuildLegend()
+    expofit = 0
+    #expofit = pz.GetFunction('pol9')
+    return hphi, pphi, expofit, canvas
+
+
+
 #a = Make4Dplot()
 #b = z_dependence()
 #c = TCanvas();b[0][0].Draw();b[1][0].Draw('same')
@@ -170,7 +305,12 @@ def xy_dependence( data = S1table, outdir = './forgif/' ):
 #f = xy_dependence()
 a = Make4Dplot
 b = z_dependence
-#c = TCanvas();b[0][0].Draw();b[1][0].Draw('same')
-d = r_dependence
-e = phi_dependence
-f = xy_dependence
+c = r_dependence
+d = phi_dependence
+e = xy_dependence
+f = zfit
+g = rfit
+h = phi_fit
+i = xy_fit
+
+x = i()

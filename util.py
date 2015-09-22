@@ -23,19 +23,21 @@ def atan3( y, x ):
     a = atan2(y,x)
     return PositiveAngle(a)
 
-def ParamEvolution( funs, npars ):
+def ParamEvolution( funs, npars, xvals = None ):
     '''
         Creates graphs to see the evolution of the parameters for each
         function.
     '''
     npoints = len(funs)
+    if xvals is None:
+        xvals = range(npoints)
     pars = [ [ fun.GetParameter(i) for i in range(npars) ] for fun in funs ]
     errs = [ [ fun.GetParError(i) for i in range(npars) ] for fun in funs ]
     graphs = [ TGraphErrors() for i in range(npars) ]
     [ (g.SetMarkerStyle(20),g.SetMarkerSize(1)) for g in graphs ]
     for i in range(npars):
         for j in range(npoints):
-            graphs[i].SetPoint(j,j,pars[j][i])
+            graphs[i].SetPoint(j, xvals[j],pars[j][i])
             graphs[i].SetPointError(j,0,errs[j][i])
 
     return graphs

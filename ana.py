@@ -33,7 +33,7 @@ data = S1table
 def Make4Dplot():
     x, y, z = zip( *map( xyz_map.get, zip(*data)[0] ) )
     n = [ sum( dat[1:] ) for dat in data ]
-    return Plot4D( x, y, z, n )
+    return Plot4D( x, y, z, n, 20, 0.2 )
 
 def z_dependence():
     rcor = 40.
@@ -140,7 +140,32 @@ def phi_dependence():
     return hs, ps, canvas
 
 
-def rphi( pmt = 3, zs = [-200., 0., 200.] ):
+def xy( pmt = 3, zs = [-200.] ):
+    titles = { z : 'z = {0};#Deltax (mm);#Deltay (mm);# photons'.format(z) for z in zs }
+    #hs     = { z : TH2F( titles[z], titles[z], rbin, rmin, rmax, pbin, pmin, pmax ) for z in zs }
+    hs     = { z : TH2F( titles[z], titles[z], 100, -215, 215, 100, -215, 215 ) for z in zs }
+
+    x0, y0 = pmt_map[pmt]
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not z in zs: continue
+        if x**2 + y**2 > 47306.0: continue
+        bin = hs[z].Fill( x-x0, y-y0 )
+        n = dat[1+pmt]
+        hs[z].SetBinContent( bin, n )
+
+    canvas = TCanvas()
+    # canvas.Divide(2,2)
+    for i,z in enumerate(zs):
+        canvas.cd(i+1)
+        hs[z].Draw('zcol')
+
+    canvas.Modified()
+    canvas.Update()
+    raw_input()
+    return hs, canvas
+
+def rphi( pmt = 3, zs = [-200.] ):
     titles = { z : 'z = {0};r (mm);phi (rad);# photons'.format(z) for z in zs }
     #hs     = { z : TH2F( titles[z], titles[z], rbin, rmin, rmax, pbin, pmin, pmax ) for z in zs }
     hs     = { z : TH2F( titles[z], titles[z], 2*rbin, rmin, 2*rmax, 100, 0, 2*pi ) for z in zs }
@@ -161,13 +186,14 @@ def rphi( pmt = 3, zs = [-200., 0., 200.] ):
         hs[z].SetBinContent( bin, n )
 
     canvas = TCanvas()
-    canvas.Divide(2,2)
+    # canvas.Divide(2,2)
     for i,z in enumerate(zs):
         canvas.cd(i+1)
         hs[z].Draw('zcol')
 
     canvas.Modified()
     canvas.Update()
+    raw_input()
     return hs, canvas
 
 def rphitrue( pmt = 0, zs = [-230., 0., 230.] ):
@@ -544,11 +570,11 @@ def r_parameters( pmt = 0, z0 = -200., nsectors = 9 ):
     return hs, canvas
 
 def rrel_parameters( z0 = -200., nsectors = 9 ):
-    titles = [ 'phi = {0} -> {1} deg;r (mm);# photons'.format(i*360./nsectors,(i+1)*360./nsectors) for i in range(nsectors) ]
+    titles = [ 'phi = {0} -> {1} deg;r (mm);# photons'.format(i*180./nsectors,(i+1)*180./nsectors) for i in range(nsectors) ]
     hinner = [ TGraph() for i in range(nsectors) ]
     houter = [ TGraph() for i in range(nsectors) ]
 
-    phi_sector = 2*pi/nsectors
+    phi_sector = pi/nsectors
     pinner = [ 0 ] * nsectors
     pouter = [ 0 ] * nsectors
     for dat in data:
@@ -560,6 +586,7 @@ def rrel_parameters( z0 = -200., nsectors = 9 ):
             pmt_phi = atan3(y0,x0)
             r   = ( (x-x0)**2 + (y-y0)**2 )**0.5
             phi = PositiveAngle( atan3( y-y0, x-x0 ) - pmt_phi )
+            phi = 2*pi - phi if phi>pi else phi
             phi_bin = int( phi // phi_sector )
             n = dat[1+pmt]
             if not n: continue
@@ -594,34 +621,48 @@ def rrel_parameters( z0 = -200., nsectors = 9 ):
     finner = map( CreatePolynomial, parinner, errinner )
     fouter = map( CreatePolynomial, parouter, errouter )
 
-    innerevol = ParamEvolution( finner, 3 )
-    outerevol = ParamEvolution( fouter, 3 )
-
-    plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
-    plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
-
+    # innerevol = ParamEvolution( finner, 3 )
+    # outerevol = ParamEvolution( fouter, 3 )
+    #
+    # plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+    # plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+    # raw_input(str(z0))
     return finner, fouter
 
-def rrel_param_z( nsectors = 9, zmin = -200., zmax = -100. ):
+def rrel_param_z( nsectors = 9, zmin = -200., zmax = 200. ):
     z = zmin
 
     finner = []
     fouter = []
+    zs     = []
     while z <= zmax:
+        zs.append(z)
         fi, fo = rrel_parameters( z, nsectors )
-        finner.append(fi[4])
-        fouter.append(fo[4])
+        finner.append(fi)
+        fouter.append(fo)
         z += 10.
 
+    parinner = []
+    for fi in zip(*finner):
+        innerevol = ParamEvolution( fi, 3, zs )
+        plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        for graph in innerevol:
+            graph.Fit('pol4')
+        raw_input()
+        # parinner
+    for fo in zip(*fouter):
+        outerevol = ParamEvolution( fo, 3, zs )
+        plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        for graph in outerevol:
+            graph.Fit('pol4')
+        raw_input()
+        # parouter
 
-    innerevol = ParamEvolution( finner, 3 )
-    outerevol = ParamEvolution( fouter, 3 )
-    plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
-    plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+
 
     raw_input()
 
-
+#gROOT.SetBatch()
 a = Make4Dplot
 b = z_dependence
 c = r_dependence
@@ -631,11 +672,13 @@ f = zfit
 g = rfit
 h = phi_fit
 i = xy_fit
-j = rphi
-k = rphitrue
-l = r3
-m = rphi_z
-n = r_parameters
-o = rrel_parameters
-p = rrel_param_z()
-#x = b()
+j = xy
+k = rphi
+l = rphitrue
+m = r3
+n = rphi_z
+o = r_parameters
+p = rrel_parameters
+q = rrel_param_z()
+
+raw_input('end')

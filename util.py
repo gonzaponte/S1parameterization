@@ -15,6 +15,11 @@ def PositiveAngle(a):
     '''
     return 2*pi+a if a<0 else a
 
+def NegativeAngle(a):
+    '''
+        [0,2pi) to [-pi,pi) conversion.
+    '''
+    return a if a<pi else a - 2*pi
 
 def atan3( y, x ):
     '''

@@ -26,13 +26,14 @@ xyz_map = { i : ( -215 + 10. * ( (i%1936)//44), -215. + 10 * ( (i%1936)%44 ), -3
 
 zs = [ -300 + 10*i for i in range(61) ]
 
-S1table = loadtxt( '/Users/Gonzalo/github/S1parameterization/S1table.dat' )
+S1table = loadtxt( '/Users/Gonzalo/github/S1parameterization/S1tableFULL.dat' )
 data = S1table
 
 
 def Make4Dplot():
     x, y, z = zip( *map( xyz_map.get, zip(*data)[0] ) )
     n = [ sum( dat[1:] ) for dat in data ]
+    x,y,z,n = zip(*filter(lambda a: (a[0]**2 + a[1]**2 < 46230.) and (abs(a[2])<210.),  zip(x,y,z,n) ) )
     return Plot4D( x, y, z, n, 20, 0.2 )
 
 def z_dependence():
@@ -569,7 +570,7 @@ def r_parameters( pmt = 0, z0 = -200., nsectors = 9 ):
     raw_input('done')
     return hs, canvas
 
-def rrel_parameters( z0 = -200., nsectors = 9 ):
+def rrel_parameters( z0 = -200., nsectors = 9, draw = false ):
     titles = [ 'phi = {0} -> {1} deg;r (mm);# photons'.format(i*180./nsectors,(i+1)*180./nsectors) for i in range(nsectors) ]
     hinner = [ TGraph() for i in range(nsectors) ]
     houter = [ TGraph() for i in range(nsectors) ]
@@ -598,14 +599,15 @@ def rrel_parameters( z0 = -200., nsectors = 9 ):
     [ (g.SetMinimum(0), g.SetMarkerStyle(20), g.SetMarkerSize(0.5), g.SetTitle(titles[i]) ) for i,g in enumerate(hinner) ]
     [ (g.SetMinimum(0), g.SetMarkerStyle(20), g.SetMarkerSize(0.5), g.SetTitle(titles[i]) ) for i,g in enumerate(houter) ]
 
-    plotinner = Plot( hinner, 3, 3, **{ str(i) : 'AP' for i in range(nsectors) } )
-    plotouter = Plot( houter, 3, 3, **{ str(i) : 'AP' for i in range(nsectors) } )
+    if draw:
+        plotinner = Plot( hinner, 3, 3, **{ str(i) : 'AP' for i in range(nsectors) } )
+        plotouter = Plot( houter, 3, 3, **{ str(i) : 'AP' for i in range(nsectors) } )
     #raw_input()
 
     parinner = []
     errinner = []
     for h in hinner:
-        h.Fit('pol2')
+        h.Fit('pol2','' if draw else 'Q0')
         f = h.GetFunction('pol2')
         parinner.append( [ f.GetParameter(i) for i in range(3) ] )
         errinner.append( [ f.GetParError(i) for i in range(3) ] )
@@ -613,7 +615,7 @@ def rrel_parameters( z0 = -200., nsectors = 9 ):
     parouter = []
     errouter = []
     for h in houter:
-        h.Fit('pol2')
+        h.Fit('pol2','' if draw else 'Q0')
         f = h.GetFunction('pol2')
         parouter.append( [ f.GetParameter(i) for i in range(3) ] )
         errouter.append( [ f.GetParError(i) for i in range(3) ] )
@@ -621,15 +623,21 @@ def rrel_parameters( z0 = -200., nsectors = 9 ):
     finner = map( CreatePolynomial, parinner, errinner )
     fouter = map( CreatePolynomial, parouter, errouter )
 
+    if draw:
+        raw_input()
     # innerevol = ParamEvolution( finner, 3 )
     # outerevol = ParamEvolution( fouter, 3 )
     #
     # plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
     # plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
     # raw_input(str(z0))
+
+
+    # finner and fouter are lists of functions of the form f(r)
+    # i.e. finner/fouter = [ f(r) for s in sectors ]
     return finner, fouter
 
-def rrel_param_z( nsectors = 9, zmin = -200., zmax = 200. ):
+def create_parameterization( nsectors = 9, zmin = -200., zmax = 200., draw = False, dump = False ):
     z = zmin
 
     finner = []
@@ -642,27 +650,164 @@ def rrel_param_z( nsectors = 9, zmin = -200., zmax = 200. ):
         fouter.append(fo)
         z += 10.
 
+    # finner/fouter are both lists like [ [ f(r) for s in sectors ] for z in zs ]
+
     parinner = []
     for fi in zip(*finner):
+        # by doing zip what we get is fi = [f(r) for z in zs] for each sector
         innerevol = ParamEvolution( fi, 3, zs )
-        plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        if draw:
+            plotinnerparam = Plot( innerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        pars = []
         for graph in innerevol:
-            graph.Fit('pol4')
-        raw_input()
-        # parinner
+            graph.Fit('pol4','' if draw else 'Q0')
+            fit = graph.GetFunction('pol4')
+            pars.append( [ fit.GetParameter(i) for i in range(5) ] )
+        if draw:
+            raw_input()
+        # pars is [ [ p_z for npar_z ] for nr in npar_r ]
+        parinner.append( pars )
+        #raw_input()
+    print 'out'
+    parouter = []
     for fo in zip(*fouter):
         outerevol = ParamEvolution( fo, 3, zs )
-        plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        if draw:
+            plotouterparam = Plot( outerevol, 2, 2, **{ str(i) : 'AP' for i in range(3) } )
+        pars = []
         for graph in outerevol:
-            graph.Fit('pol4')
-        raw_input()
-        # parouter
+            graph.Fit('pol4', '' if draw else 'Q0')
+            fit = graph.GetFunction('pol4')
+            pars.append( [ fit.GetParameter(i) for i in range(5) ] )
+        if draw:
+            raw_input()
+        parouter.append( pars )
+        #raw_input()
 
+    # parinner/parouter are both lists like [ [ [ p_z for npar_z ] for nr in npar_r ] for s in sectors ]
 
+    pmt_phi = [ atan3(y,x) for id,(x,y) in sorted( pmt_map.items() ) ]
+    phisector = pi/nsectors
+    for p,a in enumerate(parinner):
+        for q,b in enumerate(a):
+            print p,q,b
+    def parameterization( x, y, z ):
+        out  = []
+        for pmt in range(12):
+            x0, y0 = pmt_map[pmt]
+            rrel = ( (x-x0)**2 + (y-y0)**2 )**0.5
+            prel = abs( NegativeAngle( PositiveAngle( atan3( y-y0, x-x0 ) - pmt_phi[pmt] ) ) )
+            pbin = int(prel//phisector)
+            par  = parinner if pmt<3 else parouter
+            par  = par[pbin]
+            out.append( sum( sum( par[i][j]*z**j for j in range(5) ) * rrel**i for i in range(3) ) )
+        return out
 
+    if not dump: return parameterization
+    '''
+    f = open( 'parameters.txt', 'w' )
+    f.write( '#PMT phisector rparameter zpar0 zpar1 zpar2 zpar3 zpar4' + '\n' )
+    p = len(parinner)
+    for pmt in sorted(pmt_map):
+        parset = parinner if pmt < 3 else parouter
+        for phi in range(p):
+            for i in range(3):
+                f.write( ' '.join( map( str, [pmt,phi,i]+parset[phi][i] ) ) + '\n' )
+
+    f.close()
+    '''
+    f = open( 'parameters.txt', 'w' )
+    f.write( 'phisector rparameter zpar0 zpar1 zpar2 zpar3 zpar4' + '\n' )
+    p = len(parinner)
+    for parset in [parinner,parouter]:
+        for phi in range(p):
+            for i in range(3):
+                f.write( ', '.join( map( str, parset[phi][i] ) ) + '\n' )
+
+    f.close()
+#
+#    raw_input()
+
+def test_parameterization():
+    parameterization = create_parameterization()
+
+    h1  = TH1F( 'h1' , 'pull;pull;Entries'     , 500,   -10,  10 )
+    hb  = TH1F( 'hb' , ';N;Entries'            , 500,    0, 8e3 )
+    h2  = TH2F( 'h2' , ';N;#DeltaN'            , 500, -5,   5, 200,    0, 3e-3 )
+    hr  = TH2F( 'hr' , ';r (mm);#DeltaN'       , 200,    0, 215, 500, -5,   5 )
+    hz  = TH2F( 'hz' , ';z (mm);#DeltaN'       , 400, -200, 200, 500, -5,   5 )
+    hrz = TH3F( 'hrz', ';z (mm);r (mm);#DeltaN', 400, -200, 200, 200,  0, 215 , 500, -5, 5 )
+
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if not ( -210. < z < 210 ): continue
+        r = x**2 + y**2
+        if r > 47306.0: continue
+        r **= 0.5
+
+        n_test_array = parameterization( x, y, z )
+        n_real_array = dat[1:]
+        for pmt,(x0,y0) in pmt_map.items():
+            n_test = n_test_array[pmt]
+            n_real = n_real_array[pmt]
+            if not n_real: continue
+            diff  = n_real - n_test
+            diff /= n_real**0.5 * 1e-3
+
+#            d = ( (x-x0)**2 + (y-y0)**2 )**0.5
+            d = n_real
+            h1 .Fill( diff )
+            if abs(diff) > 4: hb .Fill( d*1e6 )
+#            h2. Fill( diff, d )
+            hr .Fill( r, diff )
+            hz .Fill( z, diff )
+            hrz.Fill( z, r, diff )
+
+    return h1,hb,h2,hr,hz,hrz
+    c = TCanvas()
+    c.Divide(2,2)
+    c.cd(1); h1 .Draw()
+#    c.cd(2); h2 .Draw()
+    c.cd(2); hb .Draw()
+#    c.cd(2); hr .Draw()
+    c.cd(3); hz .Draw()
+    c.cd(4); hrz.Draw()
+    c.Modified()
+    c.Update()
     raw_input()
 
+def SubtractDirectLight( pmt = 3, z0 = -200. ):
+    h = TH2F( 'h', '', 2*rbin, rmin, 2*rmax, 100, 0, 2*pi )
+    zpmt = -382.
+    for dat in data:
+        x, y, z = xyz_map[dat[0]]
+        if z != z0: continue
+        if x**2 + y**2 > 47306.0: continue
+        x0, y0  = pmt_map[pmt]
+        pmt_phi = atan3(y0,x0)
+        r   = ( (x-x0)**2 + (y-y0)**2 )**0.5
+        phi = PositiveAngle( atan3( y-y0, x-x0 ) - pmt_phi )
+        dz  = zpmt - z0
+        dr2 = dz**2 + r**2
+        dr  = dr2**0.5
+        sangle = 0.25 * 32.**2 / dr2 * dz / dr
+        h.SetBinContent( h.Fill(r,phi), abs(sangle) )
+    h.Draw('zcol')
+    raw_input()
+
+def CreateTableWithParameterization():
+    parameterization = create_parameterization()
+    ofile = open('pyparam.dat','w')
+    ofile.write('#x y z p0 p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11\n')
+    for z in [-200. + 10*i for i in range(41) ]:
+        for y in [-215. + 10*j for j in range(44)]:
+            for x in [-215. + 10*k for k in range(44)]:
+                ofile.write(' '.join( map(str,[x,y,z]+parameterization(x,y,z)) ) + '\n')
+    ofile.close()
+
+
 #gROOT.SetBatch()
+gStyle.SetOptStat()
 a = Make4Dplot
 b = z_dependence
 c = r_dependence
@@ -678,7 +823,39 @@ l = rphitrue
 m = r3
 n = rphi_z
 o = r_parameters
-p = rrel_parameters
-q = rrel_param_z()
+p = rrel_parameters#(draw=True)
+q = create_parameterization#(dump=True)#(draw=True)
+r = test_parameterization
+s = SubtractDirectLight
+t = CreateTableWithParameterization()
+'''
+
+s = r[0]
+
+f1 = TF1('gaus 10','gaus', -10, 10)
+f2 = TF1('gaus 5','gaus' , -5,  5 )
+f3 = TF1('gaus 3','gaus' , -3,  3 )
+f4 = TF1('gaus 2','gaus' , -2,  2 )
+
+s .SetLineColor(kBlack); s.SetLineWidth(4)
+f1.SetLineColor(kOrange)
+f2.SetLineColor(kBlue)
+f3.SetLineColor(kYellow)
+f4.SetLineColor(kGreen)
+
+f1.SetTitle('gaus10')
+f2.SetTitle('gaus5')
+f3.SetTitle('gaus3')
+f4.SetTitle('gaus2')
+canvas = TCanvas()
+s.Draw()
+
+#for f in [f1,f2,f3,f4]:
+for f in [f2,f4]:
+    s.Fit(f,'0R' )
+    f.Draw('same')
+
+canvas.BuildLegend()
+'''
 
 raw_input('end')
